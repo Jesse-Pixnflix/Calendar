@@ -3,6 +3,7 @@
 
 var Calendar = new Class({	
 
+	Implements: Options, //[Options, Drag], 
 	options: {
 		blocked: [], // blocked dates 
 		classes: [], // ['calendar', 'prev', 'next', 'month', 'year', 'today', 'invalid', 'valid', 'inactive', 'active', 'hover', 'hilite']
@@ -27,7 +28,7 @@ var Calendar = new Class({
 	initialize: function(obj, options) {
 		// basic error checking
 		if (!obj) { return false; }
-
+		
 		this.setOptions(options);
 
 		// create our classes array
@@ -48,7 +49,7 @@ var Calendar = new Class({
 		}).addClass(this.classes.calendar).injectInside(document.body);
 
 		// iex 6 needs a transparent iframe underneath the calendar in order to not allow select elements to render through
-		if (window.ie6) {
+		if (Browser.Engine.trident4) {
 			this.iframe = new Element('iframe', { 
 				'styles': { left: '-1000px', position: 'absolute', top: '-1000px', zIndex: 999 }
 			}).injectInside(document.body);
@@ -56,10 +57,13 @@ var Calendar = new Class({
 		}
 
 		// initialize fade method
-		this.fx = this.calendar.effect('opacity', { 
+		//this.calendar.effect(
+		this.fx = new Fx.Morph(this.calendar,{ 
+			duration: 1000,
+			
 			onStart: function() { 
 				if (this.calendar.getStyle('opacity') == 0) { // show
-					if (window.ie6) { this.iframe.setStyle('display', 'block'); }
+					if (Browser.Engine.trident4) { this.iframe.setStyle('display', 'block'); }
 					this.calendar.setStyle('display', 'block');
 					this.fireEvent('onShowStart', this.element);
 				}
@@ -70,7 +74,7 @@ var Calendar = new Class({
 			onComplete: function() { 
 				if (this.calendar.getStyle('opacity') == 0) { // hidden
 					this.calendar.setStyle('display', 'none');
-					if (window.ie6) { this.iframe.setStyle('display', 'none'); }
+					if (Browser.Engine.trident4) { this.iframe.setStyle('display', 'none'); }
 					this.fireEvent('onHideComplete', this.element);
 				}
 				else { // shown
@@ -78,12 +82,13 @@ var Calendar = new Class({
 				}
 			}.bind(this)
 		});
+		
 
 		// initialize drag method
 		if (window.Drag && this.options.draggable) {
-			this.drag = new Drag.Move(this.calendar, { 
+			this.drag = new Drag(this.calendar, {
 				onDrag: function() {
-					if (window.ie6) { this.iframe.setStyles({ left: this.calendar.style.left, top: this.calendar.style.top }); } 
+					if (Browser.Engine.trident4) { this.iframe.setStyles({ left: this.calendar.style.left, top: this.calendar.style.top }); } 
 				}.bind(this) 
 			}); 
 		}
@@ -211,7 +216,7 @@ var Calendar = new Class({
 
 		// 3. then we can further filter the limits by using the pre-existing values in the selects
 		cal.els.each(function(el) {	
-			if (el.getTag() == 'select') {		
+			if (el.get('tag') == 'select') {		
 				if (el.format.test('(y|Y)')) { // search for a year select
 					var years = [];
 
@@ -571,7 +576,7 @@ var Calendar = new Class({
 		
 		el.format = f;
 		
-		if (el.getTag() == 'select') { // select elements allow the user to manually set the date via select option
+		if (el.get('tag') == 'select') { // select elements allow the user to manually set the date via select option
 			el.addEvent('change', function(cal) { this.changed(cal); }.pass(cal, this));
 		}
 		else { // input (type text) elements restrict the user to only setting the date via the calendar
@@ -762,7 +767,7 @@ var Calendar = new Class({
 	rebuild: function(cal) {
 		cal.els.each(function(el) {			
 			/*
-			if (el.getTag() == 'select' && el.format.test('^(F|m|M|n)$')) { // special case for months-only select
+			if (el.get('tag') == 'select' && el.format.test('^(F|m|M|n)$')) { // special case for months-only select
 				if (!cal.options) { cal.options = el.clone(); } // clone a copy of months select
 			
 				var val = (cal.val) ? cal.val.getMonth() : el.value.toInt();
@@ -779,7 +784,7 @@ var Calendar = new Class({
 			}
 			*/
 
-			if (el.getTag() == 'select' && el.format.test('^(d|j)$')) { // special case for days-only select
+			if (el.get('tag') == 'select' && el.format.test('^(d|j)$')) { // special case for days-only select
 				var d = this.value(cal);
 
 				if (!d) { d = el.value.toInt(); } // if the calendar doesn't have a set value, try to use value from select
@@ -815,7 +820,10 @@ var Calendar = new Class({
 			cal.visible = false;
 			cal.button.removeClass(this.classes.active); // active
 			
-			this.fx.start(1, 0);
+			//this.fx.start(1, 0);
+			this.fx.start({
+				'opacity': [1, 0]
+			});
 		}
 		else { // otherwise show (may have to hide others)
 			// hide cal on out-of-bounds click
@@ -855,12 +863,13 @@ var Calendar = new Class({
 				}
 			}, this);
 			
-			var size = window.getSize().scrollSize;
+			var size = window.getSize();//.scrollSize;
 			
 			var coord = cal.button.getCoordinates();
 
 			var x = coord.right + this.options.tweak.x;
 			var y = coord.top + this.options.tweak.y;
+			
 
 			// make sure the calendar doesn't open off screen
 			if (!this.calendar.coord) { this.calendar.coord = this.calendar.getCoordinates(); }
@@ -868,15 +877,18 @@ var Calendar = new Class({
 			if (x + this.calendar.coord.width > size.x) { x -= (x + this.calendar.coord.width - size.x); }
 			if (y + this.calendar.coord.height > size.y) { y -= (y + this.calendar.coord.height - size.y); }
 			
+			
 			this.calendar.setStyles({ left: x + 'px', top: y + 'px' });
 
-			if (window.ie6) { 
+			if (Browser.Engine.trident4) { 
 				this.iframe.setStyles({ height: this.calendar.coord.height + 'px', left: x + 'px', top: y + 'px', width: this.calendar.coord.width + 'px' }); 
 			}
 
 			this.display(cal);
 			
-			this.fx.start(0, 1);
+			this.fx.start({
+				'opacity': [0, 1]
+			});
 		}
 	},
 
@@ -986,7 +998,7 @@ var Calendar = new Class({
 		var years, months, days;
 
 		cal.els.each(function(el) {	
-			if (el.getTag() == 'select') {		
+			if (el.get('tag') == 'select') {		
 				if (el.format.test('(y|Y)')) { // search for a year select
 					years = [];
 
